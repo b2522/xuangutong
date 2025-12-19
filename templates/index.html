@@ -347,7 +347,6 @@
         </div>
 
 
-        
         <div class="table-container">
             <table>
                 <thead>
@@ -524,6 +523,36 @@
         
 
 
+        // 控制定时刷新的函数
+        function controlRefreshTimer() {
+            // 清除之前的定时器
+            if (refreshTimer) {
+                clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+            
+            // 检查是否在交易时间内
+            if (isInTradingHours()) {
+                // 在交易时间内，启动定时刷新
+                console.log('当前处于交易时间，启动定时刷新');
+                // 立即执行一次刷新
+                fetchRealTimeStockData();
+                // 设置定时器，每60秒执行一次
+                refreshTimer = setInterval(() => {
+                    if (isInTradingHours()) {
+                        fetchRealTimeStockData();
+                    } else {
+                        // 如果不在交易时间内，停止定时器
+                        console.log('当前已超出交易时间，停止定时刷新');
+                        clearInterval(refreshTimer);
+                        refreshTimer = null;
+                    }
+                }, REFRESH_INTERVAL);
+            } else {
+                console.log('当前不在交易时间内，不启动定时刷新');
+            }
+        }
+        
         // 加载可用日期并初始化日历选择器
         document.addEventListener('DOMContentLoaded', function() {
             const dateInput = document.getElementById('dateFilter');
@@ -568,17 +597,62 @@
                     });
             }
             
-            // 获取实时股票数据
-            fetchRealTimeStockData();
+            // 启动定时刷新控制
+            controlRefreshTimer();
+            
+            // 每5分钟检查一次交易时间状态，确保在交易时间开始时自动启动刷新
+            setInterval(controlRefreshTimer, 5 * 60 * 1000);
         });
+        // 刷新状态控制变量
+        let refreshTimer = null;
+        let isRefreshing = false;
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+        const REFRESH_INTERVAL = 60000; // 60秒
+        
+        // 显示刷新状态
+
+        
+        // 检查当前时间是否在交易时间段内（周一到周五 9:25-15:00）
+        function isInTradingHours() {
+            const now = new Date();
+            const day = now.getDay(); // 0-6，0=周日，1-5=周一到周五
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            
+            // 判断是否为周一到周五
+            if (day < 1 || day > 5) {
+                return false;
+            }
+            
+            // 判断是否在9:25-15:00之间
+            if (hours < 9 || hours > 14) {
+                return false;
+            }
+            
+            if (hours === 9 && minutes < 25) {
+                return false;
+            }
+            
+            return true;
+        }
+        
         // 获取实时股票数据
         function fetchRealTimeStockData() {
+            // 如果正在刷新中，直接返回
+            if (isRefreshing) {
+                return;
+            }
+            
             const tbody = document.getElementById('stockTableBody');
             const rows = tbody.querySelectorAll('tr:not(:has(td[colspan]))');
             
             if (rows.length === 0) {
                 return;
             }
+            
+            isRefreshing = true;
+            retryCount = 0;
             
             // 收集所有股票代码并格式化
             const stockCodes = [];
@@ -670,10 +744,29 @@
                                 }
                             });
                         });
+                        
+                        retryCount = 0;
+                    } else {
+                        throw new Error('无效的返回数据');
                     }
                 })
                 .catch(error => {
                     console.error('获取实时股票数据失败:', error);
+                    retryCount++;
+                    
+                    if (retryCount < MAX_RETRIES) {
+                        // 重试
+                        setTimeout(() => {
+                            fetchRealTimeStockData();
+                        }, 3000); // 3秒后重试
+                    } else {
+                        // 达到最大重试次数
+                        retryCount = 0;
+                    }
+                })
+                .finally(() => {
+                    // 刷新完成
+                    isRefreshing = false;
                 });
 
         }
