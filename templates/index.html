@@ -1440,7 +1440,11 @@
             var header = document.querySelector('th.sortable:nth-child(4)');
             
             // 解析涨跌幅百分比数值
-            function getChangePercentage(text) {
+            function getChangePercentage(element) {
+                if (!element) return 0;
+                // 从具有change-percentage类的元素中获取文本
+                var changeElement = element.querySelector('.change-percentage');
+                var text = changeElement ? changeElement.textContent : '';
                 if (!text) return 0;
                 // 移除%符号并转换为数字
                 var matches = text.match(/[-+]?\d+(?:\.\d+)?/);
@@ -1452,8 +1456,8 @@
             
             // 排序
             rows.sort(function(a, b) {
-                var aChange = getChangePercentage(a.cells[2].textContent);
-                var bChange = getChangePercentage(b.cells[2].textContent);
+                var aChange = getChangePercentage(a.cells[3]); // 涨跌幅是第4列，索引为3
+                var bChange = getChangePercentage(b.cells[3]);
                 
                 if (isChangeSortedDesc) {
                     return aChange - bChange; // 升序
