@@ -44,25 +44,40 @@ def is_valid_crawl_time():
     # 即hour >= 15 或者 hour < 9
     return hour >= 15 or hour < 9
 
-def crawl_stock_data():
-    """抓取从开始日期到今天的所有股票数据"""
+def crawl_stock_data(crawl_today_only=True, force_update=False):
+    """抓取股票数据
+    
+    Args:
+        crawl_today_only (bool): 是否只抓取今天的数据（默认True）
+        force_update (bool): 是否强制更新已有数据（默认False）
+    """
     # 检查是否在允许的抓取时间范围内
     if not is_valid_crawl_time():
         logging.error("不在允许的抓取时间范围内（只能在15:00到9:00之间抓取）")
         return False
     
-    current_date = START_DATE
+    if crawl_today_only:
+        # 只抓取今天的数据
+        current_date = END_DATE
+        end_date = END_DATE
+    else:
+        # 抓取从开始日期到今天的所有数据
+        current_date = START_DATE
+        end_date = END_DATE
     
-    while current_date <= END_DATE:
+    while current_date <= end_date:
         # 判断是否为工作日
         if is_weekday(current_date):
             date_str = format_date(current_date)
             
             # 检查该日期是否已有数据
-            if db.date_has_data(date_str):
+            if db.date_has_data(date_str) and not force_update:
                 logging.info(f"日期{date_str}已有数据，跳过抓取")
             else:
-                logging.info(f"开始抓取{date_str}的股票数据")
+                if force_update:
+                    logging.info(f"强制更新{date_str}的股票数据")
+                else:
+                    logging.info(f"开始抓取{date_str}的股票数据")
                 
                 # 构建API URL
                 url = f"{BASE_URL}?date={date_str}&normal=true&uplimit=true"
@@ -96,8 +111,12 @@ def crawl_stock_data():
             date_str = format_date(current_date)
             logging.info(f"{date_str}是周末，跳过抓取")
         
-        # 日期加1天（无论是否处理了当前日期，都会递增）
-        current_date += datetime.timedelta(days=1)
+        if crawl_today_only:
+            # 如果只抓取今天的数据，循环一次就退出
+            break
+        else:
+            # 日期加1天（无论是否处理了当前日期，都会递增）
+            current_date += datetime.timedelta(days=1)
 
 def process_and_store_data(date_str, items):
     """处理股票数据并存储到数据库"""

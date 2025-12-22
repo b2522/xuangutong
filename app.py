@@ -6,6 +6,8 @@ import requests
 import logging
 import hashlib
 from pypinyin import lazy_pinyin, FIRST_LETTER
+from apscheduler.schedulers.background import BackgroundScheduler
+import datetime
 
 app = Flask(__name__)
 
@@ -17,8 +19,8 @@ def index():
 
 @app.route('/crawl', methods=['POST'])
 def crawl_data():
-    # 触发数据抓取
-    crawler.crawl_stock_data()
+    # 触发数据抓取，强制更新最新数据
+    crawler.crawl_stock_data(crawl_today_only=True, force_update=True)
     return "数据抓取完成！"
 
 @app.route('/search')
@@ -219,10 +221,38 @@ def get_time_sharing_data():
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 500
 
+def scheduled_crawl():
+    """定时执行股票数据抓取"""
+    logging.info("定时任务开始执行: 抓取股票数据")
+    # 强制更新今天的数据
+    crawler.crawl_stock_data(crawl_today_only=True, force_update=True)
+    logging.info("定时任务执行完成: 股票数据抓取已完成")
+
+# 初始化定时任务调度器
+scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
+# 添加定时任务：每天15:00执行
+scheduler.add_job(scheduled_crawl, 'cron', hour=15, minute=0, second=0)
+
+@app.before_first_request
+def start_scheduler():
+    """应用启动时启动定时任务"""
+    if not scheduler.running:
+        scheduler.start()
+        logging.info("定时任务调度器已启动")
+
+@app.teardown_appcontext
+def shutdown_scheduler(exception=None):
+    """应用关闭时关闭定时任务"""
+    if scheduler.running:
+        scheduler.shutdown()
+        logging.info("定时任务调度器已关闭")
+
 if __name__ == '__main__':
     # 确保templates目录存在
     if not os.path.exists('templates'):
         os.makedirs('templates')
     # 初始化数据库
     db.init_db()
+    
+    # 启动应用
     app.run(debug=True)
