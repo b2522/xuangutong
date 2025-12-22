@@ -233,19 +233,12 @@ scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
 # 添加定时任务：每天15:00执行
 scheduler.add_job(scheduled_crawl, 'cron', hour=15, minute=0, second=0)
 
-@app.before_first_request
-def start_scheduler():
-    """应用启动时启动定时任务"""
-    if not scheduler.running:
-        scheduler.start()
-        logging.info("定时任务调度器已启动")
-
-@app.teardown_appcontext
-def shutdown_scheduler(exception=None):
-    """应用关闭时关闭定时任务"""
-    if scheduler.running:
-        scheduler.shutdown()
-        logging.info("定时任务调度器已关闭")
+# 直接启动调度器，不再使用before_first_request装饰器
+try:
+    scheduler.start()
+    logging.info("定时任务调度器已启动")
+except Exception as e:
+    logging.error(f"启动定时任务调度器失败: {e}")
 
 if __name__ == '__main__':
     # 确保templates目录存在
