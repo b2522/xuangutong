@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, make_response
+from flask import Flask, render_template, request, jsonify, make_response, redirect, url_for, session
 import crawler
 import db
 import os
@@ -11,17 +11,32 @@ import datetime
 
 app = Flask(__name__)
 
+# 设置secret_key以支持session
+app.config['SECRET_KEY'] = 'your-secret-key-change-this-in-production'
+
 @app.route('/')
 def index():
     # 默认只显示最新一天的数据
     latest_data = db.get_latest_day_data()
-    return render_template('index.html', stocks=latest_data, search_mode=False)
+    
+    # 从session中获取消息（如果有的话）
+    message = session.pop('message', None)
+    
+    return render_template('index.html', stocks=latest_data, search_mode=False, message=message)
 
 @app.route('/crawl', methods=['POST'])
 def crawl_data():
-    # 触发数据抓取，强制更新最新数据
-    crawler.crawl_stock_data(crawl_today_only=True, force_update=True)
-    return "数据抓取完成！"
+    # 触发数据抓取，强制更新最新数据，绕过时间检查
+    result = crawler.crawl_stock_data(crawl_today_only=True, force_update=True, bypass_time_check=True)
+    
+    # 将抓取结果存储在session中
+    if result['status'] == 'success':
+        session['message'] = f"数据抓取完成！共处理{len(result['dates_processed'])}个日期，获取了{result['total_data']}条数据。"
+    else:
+        session['message'] = f"数据抓取失败：{result['message']}"
+    
+    # 重定向回首页
+    return redirect(url_for('index'))
 
 @app.route('/search')
 def search_stocks():
@@ -224,7 +239,7 @@ def get_time_sharing_data():
 def scheduled_crawl():
     """定时执行股票数据抓取"""
     logging.info("定时任务开始执行: 抓取股票数据")
-    # 强制更新今天的数据
+    # 强制更新今天的数据，不绕过时间检查（保持原有定时任务逻辑）
     crawler.crawl_stock_data(crawl_today_only=True, force_update=True)
     logging.info("定时任务执行完成: 股票数据抓取已完成")
 

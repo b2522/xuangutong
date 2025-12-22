@@ -367,6 +367,13 @@
                 <button type="submit">更新数据</button>
             </form>
         </div>
+        
+        <!-- 消息显示区域 -->
+        {% if message %}
+        <div class="message" style="background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; font-weight: bold;">
+            {{ message }}
+        </div>
+        {% endif %}
 
 
         <div class="table-container">
