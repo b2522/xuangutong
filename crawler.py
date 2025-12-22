@@ -36,20 +36,31 @@ def get_current_time():
     now = datetime.datetime.now()
     return now.hour, now.minute
 
-def is_valid_crawl_time():
-    """检查是否在允许的抓取时间范围内（15:00到9:00）"""
+def is_valid_crawl_time(bypass=False):
+    """检查是否在允许的抓取时间范围内（15:00到9:00）
+    
+    Args:
+        bypass (bool): 是否绕过时间检查（默认False）
+        
+    Returns:
+        bool: 是否允许抓取
+    """
+    if bypass:
+        return True
+        
     hour, minute = get_current_time()
     
     # 允许的时间范围：15:00到第二天9:00
     # 即hour >= 15 或者 hour < 9
     return hour >= 15 or hour < 9
 
-def crawl_stock_data(crawl_today_only=True, force_update=False):
+def crawl_stock_data(crawl_today_only=True, force_update=False, bypass_time_check=False):
     """抓取股票数据
     
     Args:
         crawl_today_only (bool): 是否只抓取今天的数据（默认True）
         force_update (bool): 是否强制更新已有数据（默认False）
+        bypass_time_check (bool): 是否绕过时间检查（默认False）
     
     Returns:
         dict: 抓取结果信息，包括状态、日期和数据数量
@@ -62,7 +73,7 @@ def crawl_stock_data(crawl_today_only=True, force_update=False):
     }
     
     # 检查是否在允许的抓取时间范围内
-    if not is_valid_crawl_time():
+    if not is_valid_crawl_time(bypass_time_check):
         logging.error("不在允许的抓取时间范围内（只能在15:00到9:00之间抓取）")
         result["status"] = "error"
         result["message"] = "不在允许的抓取时间范围内（只能在15:00到9:00之间抓取）"
