@@ -3,361 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>热点题材解读</title>
+
     <!-- 引入ECharts库 -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Microsoft YaHei', 'Arial', sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-            padding: 20px 0;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-        
-        .header {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-        }
-        
-        h1 {
-            text-align: center;
-            margin-bottom: 30px;
-            color: #2c3e50;
-            font-size: 2.5em;
-            font-weight: 600;
-        }
-        
-        .header-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-            gap: 15px;
-            padding: 10px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-        }
-        
-        .search-container {
-            position: relative;
-            flex: 1;
-            max-width: 400px;
-        }
-        
-        .search-container input {
-            width: 100%;
-            padding: 14px 20px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-        }
-        
-        .search-container input:focus {
-            outline: none;
-            border-color: #2c3e50;
-            box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1), 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        #dateFilter {
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 25px;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            cursor: pointer;
-        }
-        
-        #dateFilter:focus {
-            outline: none;
-            border-color: #2c3e50;
-            box-shadow: 0 0 0 3px rgba(44, 62, 80, 0.1), 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .search-suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%;
-            background-color: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 10px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
-            max-height: 500px;
-            overflow-y: auto;
-            display: none;
-            margin-top: 5px;
-        }
-        
-        .search-suggestion-item {
-            padding: 12px 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border-radius: 5px;
-            margin: 2px 10px;
-        }
-        
-        .search-suggestion-item:hover {
-            background-color: #f0f4f8;
-            transform: translateX(5px);
-        }
-        
-        button {
-            background-color: #0066CC;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 16px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        button:hover {
-            background-color: #004080;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        .table-container {
-            overflow-x: auto;
-            border-radius: 10px;
-            background-color: white;
-            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.1);
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th {
-            padding: 18px 15px;
-            text-align: center;
-            border-bottom: 3px solid #4285F4;
-            background-color: #4285F4;
-            color: white;
-            font-weight: 600;
-            font-size: inherit;
-            white-space: nowrap;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            letter-spacing: 0.5px;
-        }
-        
-        td {
-            padding: 15px 15px;
-            text-align: left;
-            border-bottom: 1px solid #f0f0f0;
-            vertical-align: top;
-            transition: all 0.2s ease;
-        }
-        
-        tr {
-            transition: all 0.3s ease;
-        }
-        
-        tr:nth-child(even) {
-            background-color: #fafbff;
-        }
-        
-        tr:hover {
-            background-color: #f0f4f8;
-        }
-        
-        tr:hover td {
-            background-color: transparent;
-        }
-        
-        td:nth-child(1), td:nth-child(2), td:nth-child(5), td:nth-child(6), td:nth-child(7), td:nth-child(9), td:nth-child(10) {
-            text-align: center;
-        }
-        
-        /* 调整列宽 */
-        th:nth-child(1), td:nth-child(1) {
-            width: 120px; /* 第一列：股票名称 */
-        }
-        
-        th:nth-child(2), td:nth-child(2) {
-            width: 120px; /* 第二列：分时图 */
-            text-align: center;
-            padding: 0;
-        }
-        
-        th:nth-child(3), td:nth-child(3) {
-            width: 80px; /* 第三列：价格 */
-            text-align: right;
-        }
-        
-        th:nth-child(4), td:nth-child(4) {
-            width: 80px; /* 第四列：涨跌幅 */
-            text-align: right;
-        }
-        
-        /* 分时图容器样式 */
-        .time-chart {
-            width: 120px;
-            height: 60px;
-            margin: 0 auto;
-            display: block;
-        }
-        
-        /* 确保分时图列的单元格有足够的高度 */
-        td:nth-child(2) {
-            height: 60px;
-            padding: 0;
-        }
-        
-        /* 隐藏代码列和市场列 */
-        th:nth-child(5), td:nth-child(5), /* 第五列：代码 */
-        th:nth-child(6), td:nth-child(6)  /* 第六列：市场 */
-        {
-            display: none;
-        }
-        
-        th:nth-child(7), td:nth-child(7) {
-            width: 100px; /* 第七列：几天几板 */
-        }
-        
-        th:nth-child(8), td:nth-child(8) {
-            width: 500px; /* 第八列：解读 - 增加宽度以完整显示内容 */
-        }
-        
-        th:nth-child(9), td:nth-child(9) {
-            width: 100px; /* 第九列：所属题材 - 适当减少宽度 */
-        }
-        
-        th:nth-child(10), td:nth-child(10) {
-            width: 100px; /* 第十列：日期 - 适当减少宽度 */
-        }
-        
-        /* 排序表头样式 */
-        th.sortable {
-            cursor: pointer;
-            position: relative;
-            user-select: none;
-        }
-        
-        /* 确保表头没有任何悬停效果 */
-        th:hover {
-            background-color: #4285F4;
-            color: white;
-        }
-        
-        th.sortable::after {
-            content: '▼';
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 12px;
-            color: rgba(255, 255, 255, 0.7);
-            transition: all 0.3s ease;
-        }
-        
-        th.sortable.sorted::after {
-            color: white;
-            transform: translateY(-50%) rotate(180deg);
-        }
-        
-        /* 高级视觉效果 */
-        .table-container {
-            position: relative;
-            overflow-x: auto;
-        }
-        
-        .table-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-            z-index: 1;
-        }
-        
-        /* 3开头股票代码显示为橙色 */
-        .orange-code {
-            color: #FF7F00;
-        }
-        
-        tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-        
-        .no-data {
-            text-align: center;
-            padding: 80px;
-            color: #777;
-            font-size: 18px;
-        }
-        
-        .date-info {
-            background-color: #e8f4f8;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-
-        
-
-        
-        /* 响应式设计 */
-        @media (max-width: 768px) {
-            .header-section {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .search-container {
-                max-width: 100%;
-            }
-            
-            h1 {
-                font-size: 2em;
-            }
-        }
-        
-
-    </style>
+    <!-- 引入外部CSS文件 -->
+    <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
     <div class="container">
 
         
-
         
         <!-- 移除重复的搜索框 -->
         <div class="table-container">
@@ -365,12 +20,12 @@
                 <thead>
                     <tr>
                         <th width="120px">
-                            <div style="display: flex; width: 100%; margin-top: 5px;">
+                            <div class="search-wrapper">
                                 <input 
                                     type="text" 
                                     id="searchInput" 
                                     placeholder="股票名称" 
-                                    style="padding: 5px; font-size: 14px; width: 100%;"
+                                    class="search-input"
                                 >
                             </div>
                         </th>
@@ -382,10 +37,10 @@
                         <th class="sortable" onclick="sortByDaysBoards()">几天几板</th>
                         <th>解读</th>
                         <th>
-                            <input type="text" id="plateFilter" placeholder="搜索题材" oninput="filterByPlate(this.value)" style="margin: 0 auto; display: block; padding: 5px; border: none; border-radius: 5px;">
+                            <input type="text" id="plateFilter" placeholder="搜索题材" oninput="filterByPlate(this.value)" class="filter-input">
                         </th>
                         <th>
-                            <input type="date" id="dateFilter" placeholder="选择日期" onchange="filterByDate(this.value)" style="margin: 0 auto; display: block; padding: 5px; border: none; border-radius: 5px;">
+                            <input type="date" id="dateFilter" placeholder="选择日期" onchange="filterByDate(this.value)" class="filter-input">
                         </th>
                     </tr>
                 </thead>
@@ -393,14 +48,14 @@
                     {% if stocks %}
                         {% for stock in stocks %}
                             <tr>
-                                <td><a href="https://xuangutong.com.cn/stock/{{ stock.code_part }}.{{ stock.market|upper }}" target="_blank" style="text-decoration: none; color: #2c3e50;">{{ stock.name }}</a></td>
+                                <td><a href="https://xuangutong.com.cn/stock/{{ stock.code_part }}.{{ stock.market|upper }}" target="_blank" class="stock-name-link{% if stock.code_part.startswith('3') or stock.code_part.startswith('68') %} orange-text{% endif %}">{{ stock.name }}</a></td>
                                 <td><div class="time-chart" data-code="{{ stock.code_part }}"></div></td>
                                 <td class="price"></td>
                                 <td class="change-percentage"></td>
                                 <td class="{% if stock.code_part.startswith('3') %}orange-code{% endif %}">{{ stock.code_part }}</td>
                                 <td>{{ stock.market }}</td>
                                 <td>{% if stock.m_days_n_boards %}
-                                    <span style="color: rgb(255, 255, 255); background: rgb(255, 90, 81); border-radius: 4px; font-size: 12px; padding: 0px 8px;">{{ stock.m_days_n_boards }}</span>
+                                    <span class="days-boards-tag">{{ stock.m_days_n_boards }}</span>
                                 {% else %}{{ stock.m_days_n_boards }}{% endif %}</td>
                                 <td>{{ stock.description }}</td>
                                 <td>{{ stock.plates }}</td>
@@ -489,14 +144,15 @@
                             var row = document.createElement('tr');
                             var link = 'https://xuangutong.com.cn/stock/' + stock.code_part + '.' + stock.market.toUpperCase();
                             var codeClass = stock.code_part.startsWith('3') ? 'orange-code' : '';
+                            var nameClass = (stock.code_part.startsWith('3') || stock.code_part.startsWith('68')) ? 'stock-name-link orange-text' : 'stock-name-link';
                             row.innerHTML = 
-                                '<td><a href="' + link + '" target="_blank" style="text-decoration: none; color: #2c3e50;">' + stock.name + '</a></td>' +
+                                '<td><a href="' + link + '" target="_blank" class="' + nameClass + '">' + stock.name + '</a></td>' +
                                 '<td><div class="time-chart" data-code="' + stock.code_part + '"></div></td>' +
                                 '<td class="price"></td>' +
                                 '<td class="change-percentage"></td>' +
                                 '<td class="' + codeClass + '">' + stock.code_part + '</td>' +
                                 '<td>' + stock.market + '</td>' +
-                                '<td>' + (stock.m_days_n_boards ? '<span style="color: rgb(255, 255, 255); background: rgb(255, 90, 81); border-radius: 4px; font-size: 12px; padding: 0px 8px;">' + stock.m_days_n_boards + '</span>' : stock.m_days_n_boards) + '</td>' +
+                                '<td>' + (stock.m_days_n_boards ? '<span class="days-boards-tag">' + stock.m_days_n_boards + '</span>' : stock.m_days_n_boards) + '</td>' +
                                 '<td>' + stock.description + '</td>' +
                                 '<td>' + stock.plates + '</td>' +
                                 '<td>' + stock.date + '</td>';
@@ -1265,7 +921,7 @@
             
             var tbody = document.getElementById('stockTableBody');
             // 使用更兼容的方式选择行
-            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr')).filter(function(row) {
+            var rows = Array.prototype.slice.call(tbody.getElementsByTagName('tr')).filter(function(row) {
                 return !row.querySelector('td[colspan]');
             });
             
