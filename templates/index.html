@@ -357,30 +357,23 @@
     <div class="container">
 
         
-        <div class="header-section">
-            <div class="search-container">
-                <input type="text" id="searchInput" placeholder="搜索股票名称..." oninput="showSuggestions(this.value)">
-                <div id="searchSuggestions" class="search-suggestions"></div>
-            </div>
-            <button onclick="resetFilters()">复位</button>
-            <form action="/crawl" method="post">
-                <button type="submit">更新数据</button>
-            </form>
-        </div>
+
         
-        <!-- 消息显示区域 -->
-        {% if message %}
-        <div class="message" style="background-color: #e8f4f8; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; font-weight: bold;">
-            {{ message }}
-        </div>
-        {% endif %}
-
-
+        <!-- 移除重复的搜索框 -->
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>股票名称</th>
+                        <th width="120px">
+                            <div style="display: flex; width: 100%; margin-top: 5px;">
+                                <input 
+                                    type="text" 
+                                    id="searchInput" 
+                                    placeholder="股票名称" 
+                                    style="padding: 5px; font-size: 14px; width: 100%;"
+                                >
+                            </div>
+                        </th>
                         <th>分时图</th>
                         <th>价格</th>
                         <th class="sortable" onclick="sortByChangePercentage()">涨跌幅</th>
@@ -389,7 +382,7 @@
                         <th class="sortable" onclick="sortByDaysBoards()">几天几板</th>
                         <th>解读</th>
                         <th>
-                            <input type="text" id="plateFilter" placeholder="输入题材或首字母" oninput="filterByPlate(this.value)" style="margin: 0 auto; display: block; padding: 5px; border: none; border-radius: 5px;">
+                            <input type="text" id="plateFilter" placeholder="搜索题材" oninput="filterByPlate(this.value)" style="margin: 0 auto; display: block; padding: 5px; border: none; border-radius: 5px;">
                         </th>
                         <th>
                             <input type="date" id="dateFilter" placeholder="选择日期" onchange="filterByDate(this.value)" style="margin: 0 auto; display: block; padding: 5px; border: none; border-radius: 5px;">
@@ -643,16 +636,31 @@
                                 
                                 // 检查是否是周末
                                 if (dayOfWeek === 0 || dayOfWeek === 6) {
+                                    console.log('选择了周末日期:', selectedDate);
                                     alert('周六、周日不可选择');
                                     this.value = '';
                                     return;
                                 }
                                 
-                                // 检查日期是否有数据
-                                if (!window.availableDates.includes(selectedDate)) {
-                                    alert('该日期无数据');
-                                    this.value = '';
-                                }
+                                // 直接调用API检查日期是否有数据，而仅依赖缓存列表
+                                console.log('检查日期是否有数据:', selectedDate);
+                                fetch('/get-data-by-date?date=' + encodeURIComponent(selectedDate))
+                                    .then(function(response) {
+                                        return response.json();
+                                    })
+                                    .then(function(data) {
+                                        // 如果返回的数据为空数组，说明该日期没有数据
+                                        if (!data || data.length === 0) {
+                                            console.log('日期无数据:', selectedDate, data);
+                                            alert('该日期无数据');
+                                            e.target.value = '';
+                                        } else {
+                                            console.log('日期有数据:', selectedDate, '数据条数:', data.length);
+                                        }
+                                    })
+                                    .catch(function(error) {
+                                        console.error('检查日期数据失败:', error);
+                                    });
                             }
                         }, 300));
                     })
@@ -1438,7 +1446,7 @@
         
         function sortByDaysBoards() {
             var tbody = document.getElementById('stockTableBody');
-            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr')).filter(function(row) {
+            var rows = Array.prototype.slice.call(tbody.getElementsByTagName('tr')).filter(function(row) {
                 return !row.querySelector('td[colspan]');
             });
             var header = document.querySelector('th.sortable:nth-child(7)');
@@ -1482,7 +1490,7 @@
         function sortByChangePercentage() {
             console.log('开始涨跌幅排序...');
             var tbody = document.getElementById('stockTableBody');
-            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr')).filter(function(row) {
+            var rows = Array.prototype.slice.call(tbody.getElementsByTagName('tr')).filter(function(row) {
                 return !row.querySelector('td[colspan]');
             });
             var header = document.querySelector('th.sortable:nth-child(4)');

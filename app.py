@@ -245,8 +245,11 @@ def scheduled_crawl():
 
 # 初始化定时任务调度器
 scheduler = BackgroundScheduler(timezone='Asia/Shanghai')
-# 添加定时任务：每天15:00执行
-scheduler.add_job(scheduled_crawl, 'cron', hour=15, minute=0, second=0)
+# 添加定时任务：周一到周五15:00执行
+scheduler.add_job(scheduled_crawl, 'cron', hour=15, minute=0, second=0, day_of_week='0-4')
+# 添加定时任务：周一到周五16:15执行
+scheduler.add_job(scheduled_crawl, 'cron', hour=16, minute=15, second=0, day_of_week='0-4')
+
 
 # 直接启动调度器，不再使用before_first_request装饰器
 try:
