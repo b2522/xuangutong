@@ -399,7 +399,9 @@
                                 <td class="change-percentage"></td>
                                 <td class="{% if stock.code_part.startswith('3') %}orange-code{% endif %}">{{ stock.code_part }}</td>
                                 <td>{{ stock.market }}</td>
-                                <td>{{ stock.m_days_n_boards }}</td>
+                                <td>{% if stock.m_days_n_boards %}
+                                    <span style="color: rgb(255, 255, 255); background: rgb(255, 90, 81); border-radius: 4px; font-size: 12px; padding: 0px 8px;">{{ stock.m_days_n_boards }}</span>
+                                {% else %}{{ stock.m_days_n_boards }}{% endif %}</td>
                                 <td>{{ stock.description }}</td>
                                 <td>{{ stock.plates }}</td>
                                 <td>{{ stock.date }}</td>
@@ -494,7 +496,7 @@
                                 '<td class="change-percentage"></td>' +
                                 '<td class="' + codeClass + '">' + stock.code_part + '</td>' +
                                 '<td>' + stock.market + '</td>' +
-                                '<td>' + stock.m_days_n_boards + '</td>' +
+                                '<td>' + (stock.m_days_n_boards ? '<span style="color: rgb(255, 255, 255); background: rgb(255, 90, 81); border-radius: 4px; font-size: 12px; padding: 0px 8px;">' + stock.m_days_n_boards + '</span>' : stock.m_days_n_boards) + '</td>' +
                                 '<td>' + stock.description + '</td>' +
                                 '<td>' + stock.plates + '</td>' +
                                 '<td>' + stock.date + '</td>';
