@@ -2,6 +2,7 @@ import requests
 import datetime
 import db
 import logging
+import sqlite3
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -94,52 +95,67 @@ def crawl_stock_data(crawl_today_only=True, force_update=False, bypass_time_chec
             result["dates_processed"].append(date_str)
             
             # 检查该日期是否已有数据
-            if db.date_has_data(date_str) and not force_update:
-                logging.info(f"日期{date_str}已有数据，跳过抓取")
-                result["message"] += f"日期{date_str}已有数据，跳过抓取。"
+            if db.date_has_data(date_str):
+                if force_update:
+                    logging.info(f"强制更新{date_str}的股票数据，先删除旧表")
+                else:
+                    logging.info(f"日期{date_str}已有数据，将删除旧表并重新创建")
+                
+                # 删除旧表
+                try:
+                    conn = sqlite3.connect(db.DB_PATH)
+                    cursor = conn.cursor()
+                    table_name = f"stock_{date_str}"
+                    cursor.execute(f"DROP TABLE IF EXISTS {table_name}")
+                    conn.commit()
+                    conn.close()
+                    logging.info(f"成功删除旧表{table_name}")
+                except Exception as e:
+                    logging.error(f"删除旧表失败: {e}")
+                    continue
             else:
                 if force_update:
                     logging.info(f"强制更新{date_str}的股票数据")
                 else:
                     logging.info(f"开始抓取{date_str}的股票数据")
+            
+            # 构建API URL
+            url = f"{BASE_URL}?date={date_str}&normal=true&uplimit=true"
+            
+            try:
+                # 发送API请求（使用模拟浏览器的请求头）
+                response = requests.get(url, headers=HEADERS)
+                response.raise_for_status()  # 检查请求是否成功
                 
-                # 构建API URL
-                url = f"{BASE_URL}?date={date_str}&normal=true&uplimit=true"
+                # 解析JSON数据
+                data = response.json()
                 
-                try:
-                    # 发送API请求（使用模拟浏览器的请求头）
-                    response = requests.get(url, headers=HEADERS)
-                    response.raise_for_status()  # 检查请求是否成功
+                if data.get("code") == 20000 and data.get("data"):
+                    # 获取股票数据项
+                    items = data["data"].get("items", [])
                     
-                    # 解析JSON数据
-                    data = response.json()
-                    
-                    if data.get("code") == 20000 and data.get("data"):
-                        # 获取股票数据项
-                        items = data["data"].get("items", [])
-                        
-                        if items:
-                            logging.info(f"成功获取{date_str}的{len(items)}条股票数据")
-                            # 处理并存储数据
-                            process_and_store_data(date_str, items)
-                            result["total_data"] += len(items)
-                            result["message"] += f"成功获取{date_str}的{len(items)}条股票数据。"
-                        else:
-                            logging.info(f"{date_str}没有股票数据")
-                            result["message"] += f"{date_str}没有股票数据。"
+                    if items:
+                        logging.info(f"成功获取{date_str}的{len(items)}条股票数据")
+                        # 处理并存储数据
+                        process_and_store_data(date_str, items)
+                        result["total_data"] += len(items)
+                        result["message"] += f"成功获取{date_str}的{len(items)}条股票数据。"
                     else:
-                        logging.error(f"API返回错误: {data.get('message', '未知错误')}")
-                        result["status"] = "error"
-                        result["message"] += f"API返回错误: {data.get('message', '未知错误')}。"
-                        
-                except requests.exceptions.RequestException as e:
-                    logging.error(f"请求API失败: {e}")
+                        logging.info(f"{date_str}没有股票数据")
+                        result["message"] += f"{date_str}没有股票数据。"
+                else:
+                    logging.error(f"API返回错误: {data.get('message', '未知错误')}")
                     result["status"] = "error"
-                    result["message"] += f"请求API失败: {e}。"
-                except Exception as e:
-                    logging.error(f"处理数据时出错: {e}")
-                    result["status"] = "error"
-                    result["message"] += f"处理数据时出错: {e}。"
+                    result["message"] += f"API返回错误: {data.get('message', '未知错误')}。"
+                    
+            except requests.exceptions.RequestException as e:
+                logging.error(f"请求API失败: {e}")
+                result["status"] = "error"
+                result["message"] += f"请求API失败: {e}。"
+            except Exception as e:
+                logging.error(f"处理数据时出错: {e}")
+                result["status"] = "error"
+                result["message"] += f"处理数据时出错: {e}。"
         else:
             date_str = format_date(current_date)
             logging.info(f"{date_str}是周末，跳过抓取")

@@ -2,13 +2,11 @@
   "crons": [
     {
       "path": "/api/crawl",
-      "schedule": "10 15 * * 1-5",
-      "timezone": "Asia/Shanghai"
+      "schedule": "10 15 * * 1-5"
     },
     {
       "path": "/api/crawl",
-      "schedule": "15 16 * * 1-5",
-      "timezone": "Asia/Shanghai"
+      "schedule": "10 16 * * 1-5"
     }
   ],
   "version": 2

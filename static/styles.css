@@ -1,0 +1,8 @@
+/* 涨跌颜色样式 */
+.price-up {
+    color: #ff4d4f;
+}
+
+.price-down {
+    color: #52c41a;
+}

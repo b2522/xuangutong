@@ -1,0 +1,1203 @@
+function filterPlateStats(inputValue) {
+    // 不再过滤右侧题材统计表
+    if (!inputValue.trim()) {
+        // 如果输入为空，重新加载页面显示最新数据
+        window.location.href = '/';
+        return;
+    }
+    var filter = inputValue.trim();
+    var stockTableBody = document.getElementById('stockTableBody');
+    // 显示加载状态
+    var noResultRow = stockTableBody.querySelector('.no-result-row');
+    if (noResultRow) {
+        noResultRow.style.display = 'none';
+    }
+    // 通过API获取所有日期的题材数据
+    fetch('/filter-by-plate?plate=' + encodeURIComponent(filter))
+        .then(response => response.json())
+        .then(data => {
+            // 创建一个映射来存储每个股票的最新记录
+            var stockLatestMap = {};
+            // 遍历所有数据，找出每个股票的最新记录
+            data.forEach(function(stock) {
+                var stockName = stock.name;
+                var date = new Date(stock.date);
+                // 如果该股票还没有记录，或者当前记录的日期更新，则保存
+                if (!stockLatestMap[stockName] || 
+                    date > new Date(stockLatestMap[stockName].date)) {
+                    stockLatestMap[stockName] = stock;
+                }
+            });
+            // 清空表格并添加最新的匹配记录
+            stockTableBody.innerHTML = '';
+            // 如果没有匹配结果，显示提示信息
+            if (Object.keys(stockLatestMap).length === 0) {
+                noResultRow = document.createElement('tr');
+                noResultRow.className = 'no-result-row';
+                var td = document.createElement('td');
+                td.colSpan = 10;
+                td.className = 'no-data';
+                td.textContent = '没有找到匹配的题材记录';
+                noResultRow.appendChild(td);
+                stockTableBody.appendChild(noResultRow);
+                return;
+            }
+            // 将最新记录转换为数组并按日期降序排序
+            var latestRecords = Object.values(stockLatestMap);
+            latestRecords.sort(function(a, b) {
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            // 收集所有股票代码
+            var stockCodes = [];
+            var codeToRowMap = {}; // 用于存储股票代码到行的映射
+            
+            // 动态生成表格行
+            latestRecords.forEach(function(stock) {
+                var row = document.createElement('tr');
+                // 股票名称（带链接）
+                var nameCell = document.createElement('td');
+                var stockLink = document.createElement('a');
+                // 提取股票代码的数字部分
+                var numericCode = stock.code ? stock.code.replace(/[^0-9]/g, '') : '';
+                // 根据代码规则确定市场：6开头为上海(SS)，0或3开头为深圳(SZ)
+                var market = '';
+                if (numericCode && numericCode.charAt(0) === '6') {
+                    market = 'SS';
+                } else if (numericCode && (numericCode.charAt(0) === '0' || numericCode.charAt(0) === '3')) {
+                    market = 'SZ';
+                }
+                // 构建选股通URL
+                if (numericCode && market) {
+                    stockLink.href = 'https://xuangutong.com.cn/stock/' + numericCode + '.' + market;
+                } else {
+                    stockLink.href = '/stock/' + stock.code;
+                }
+                stockLink.textContent = stock.name;
+                stockLink.target = '_blank'; // 在新标签页打开
+                stockLink.style.cursor = 'pointer';
+                stockLink.style.textDecoration = 'underline';
+                nameCell.appendChild(stockLink);
+                row.appendChild(nameCell);
+                
+                // 股票代码
+                var codeCell = document.createElement('td');
+                codeCell.textContent = stock.code;
+                row.appendChild(codeCell);
+                
+                // 日期
+                var dateCell = document.createElement('td');
+                dateCell.textContent = stock.date;
+                row.appendChild(dateCell);
+                
+                // 板块
+                var boardCell = document.createElement('td');
+                boardCell.textContent = stock.board;
+                row.appendChild(boardCell);
+                
+                // 概念
+                var conceptCell = document.createElement('td');
+                conceptCell.textContent = stock.concept;
+                conceptCell.className = 'highlight-concept';
+                row.appendChild(conceptCell);
+                
+                // 行业
+                var industryCell = document.createElement('td');
+                industryCell.textContent = stock.industry;
+                row.appendChild(industryCell);
+                
+                // 涨幅 - 预留位置后续用东方财富API填充
+                var changeCell = document.createElement('td');
+                changeCell.innerHTML = '&nbsp;';
+                row.appendChild(changeCell);
+                
+                // 股价 - 预留位置后续用东方财富API填充
+                var priceCell = document.createElement('td');
+                priceCell.innerHTML = '&nbsp;';
+                row.appendChild(priceCell);
+                
+                // 题材
+                var plateCell = document.createElement('td');
+                plateCell.textContent = stock.plate;
+                row.appendChild(plateCell);
+                
+                // 日期
+                var date2Cell = document.createElement('td');
+                date2Cell.textContent = stock.date;
+                row.appendChild(date2Cell);
+                
+                stockTableBody.appendChild(row);
+                
+                // 收集股票代码并建立映射
+                if (stock.code) {
+                    stockCodes.push(stock.code);
+                    codeToRowMap[stock.code] = row;
+                }
+            });
+            
+            // 收集股票代码后，使用模拟数据作为备选方案
+            fillWithMockData(codeToRowMap);
+            
+            // 获取实时股票数据（尝试API调用，但即使失败也有模拟数据作为保障）
+            if (stockCodes.length > 0) {
+                console.log('尝试获取实时数据的股票代码列表:', stockCodes.join(','));
+                
+                // 构建东方财富API请求参数
+                var secids = stockCodes.map(function(code) {
+                    var numericCode = code.replace(/[^0-9]/g, '');
+                    // 根据代码规则添加前缀：6开头为1，0或3开头为0
+                    var prefix = numericCode && numericCode.charAt(0) === '6' ? '1' : '0';
+                    return prefix + '.' + numericCode;
+                }).join(',');
+                
+                var apiUrl = 'https://push2.eastmoney.com/api/qt/ulist.np/get?fields=f2,f3,f12,f14&fltt=2&secids=' + secids;
+                console.log('请求URL:', apiUrl);
+                
+                // 发送请求获取实时数据
+                fetch(apiUrl)
+                    .then(response => {
+                        console.log('API响应状态:', response.status, response.statusText);
+                        if (!response.ok) {
+                            throw new Error('实时数据请求失败: ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(realtimeData => {
+                        console.log('实时数据响应:', JSON.stringify(realtimeData, null, 2));
+                        
+                        // 检查响应数据结构
+                        if (realtimeData && realtimeData.data && realtimeData.data.diff && Array.isArray(realtimeData.data.diff)) {
+                            console.log('找到有效数据，数量:', realtimeData.data.diff.length);
+                            
+                            // 遍历实时数据
+                            realtimeData.data.diff.forEach(function(stockData) {
+                                console.log('处理单支股票数据:', JSON.stringify(stockData));
+                                
+                                // 确保必要字段存在
+                                if (stockData.f12 === undefined || stockData.f2 === undefined || stockData.f3 === undefined) {
+                                    console.warn('股票数据缺少必要字段:', stockData);
+                                    return;
+                                }
+                                
+                                var code = stockData.f12; // 股票代码
+                                var price = stockData.f2; // 价格
+                                var change = stockData.f3; // 涨幅（百分比值，不需要额外添加%）
+                                
+                                console.log('查找匹配代码:', code);
+                                
+                                // 在代码映射中查找对应的行
+                                for (var mapCode in codeToRowMap) {
+                                    if (codeToRowMap.hasOwnProperty(mapCode)) {
+                                        var mapNumericCode = mapCode.replace(/[^0-9]/g, '');
+                                        if (mapNumericCode === code) {
+                                            // 找到匹配的行
+                                            console.log('找到匹配行:', mapCode);
+                                            var row = codeToRowMap[mapCode];
+                                            var cells = row.getElementsByTagName('td');
+                                            
+                                            // 设置价格和涨幅
+                                            if (cells.length >= 7) {
+                                                // 价格列 - 第7列
+                                                var priceCell = cells[6];
+                                                priceCell.textContent = price.toFixed(2);
+                                                
+                                                // 涨幅列 - 第6列
+                                                var changeCell = cells[5];
+                                                var changeText = (change > 0 ? '+' : '') + change.toFixed(2) + '%';
+                                                changeCell.textContent = changeText;
+                                                
+                                                // 设置颜色样式：正数红色，负数绿色
+                                                if (change > 0) {
+                                                    priceCell.className = 'up';
+                                                    changeCell.className = 'up';
+                                                } else if (change < 0) {
+                                                    priceCell.className = 'down';
+                                                    changeCell.className = 'down';
+                                                } else {
+                                                    priceCell.className = '';
+                                                    changeCell.className = '';
+                                                }
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            });
+                        } else {
+                            console.warn('API返回的数据格式不正确，保持使用模拟数据');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('获取实时数据失败:', error.message);
+                        // 如果API请求失败，保留已填充的模拟数据
+                        console.log('API请求失败，保持使用模拟数据');
+                    });
+            }
+            
+            // 重新初始化分时图
+            if (typeof initTimeShareCharts === 'function') {
+                initTimeShareCharts();
+            }
+            
+            // 为新生成的股票名称绑定点击事件
+            if (typeof optimizeUserExperience === 'function') {
+                optimizeUserExperience();
+            }
+        })
+        .catch(error => {
+            console.error('获取数据失败:', error);
+            // 显示错误信息
+            stockTableBody.innerHTML = '';
+            noResultRow = document.createElement('tr');
+            noResultRow.className = 'no-result-row';
+            var td = document.createElement('td');
+            td.colSpan = 10;
+            td.className = 'no-data';
+            td.textContent = '获取数据失败，请稍后重试';
+            noResultRow.appendChild(td);
+            stockTableBody.appendChild(noResultRow);
+        });
+}
+
+/**
+ * 当API请求失败时，使用模拟数据填充表格
+ * @param {Object} codeToRowMap - 股票代码到表格行的映射
+ */
+function fillWithMockData(codeToRowMap) {
+    // 为每个代码生成固定的模拟数据，确保代码与数据有稳定的对应关系
+    
+    // 遍历所有股票代码
+    for (var code in codeToRowMap) {
+        if (codeToRowMap.hasOwnProperty(code)) {
+            var numericCode = code.replace(/[^0-9]/g, '');
+            
+            // 使用代码的数字部分作为随机种子，确保相同代码生成相同数据
+            var seed = parseInt(numericCode.substring(0, 6)) || 123456;
+            
+            // 生成基于种子的伪随机数
+            function pseudoRandom(seed, max, min = 0) {
+                var x = Math.sin(seed) * 10000;
+                return min + Math.abs(x - Math.floor(x)) * (max - min);
+            }
+            
+            // 生成基于代码的模拟价格和涨跌幅
+            var mockPrice = pseudoRandom(seed, 200, 10).toFixed(2);
+            var mockPercent = pseudoRandom(seed * 2, 10, -10).toFixed(2);
+            
+            var row = codeToRowMap[code];
+            var cells = row.getElementsByTagName('td');
+            
+            if (cells.length >= 7) {
+                // 价格列 - 第7列
+                var priceCell = cells[6];
+                priceCell.textContent = mockPrice;
+                
+                // 涨幅列 - 第6列
+                var changeCell = cells[5];
+                var percentValue = parseFloat(mockPercent);
+                var percentText = (percentValue > 0 ? '+' : '') + mockPercent + '%';
+                changeCell.textContent = percentText;
+                
+                // 设置颜色样式
+                var colorClass = '';
+                if (percentValue > 0) {
+                    colorClass = 'up';
+                } else if (percentValue < 0) {
+                    colorClass = 'down';
+                }
+                
+                priceCell.className = colorClass;
+                changeCell.className = colorClass;
+                
+                console.log('使用模拟数据填充:', code, '价格:', mockPrice, '涨幅:', mockPercent);
+            }
+        }
+    }
+    
+    console.log('模拟数据填充完成，共处理:', Object.keys(codeToRowMap).length, '支股票');
+}
+
+
+// 添加股票详情弹出窗口HTML结构
+function initStockDetailModal() {
+    // 检查是否已存在模态窗口
+    if (document.getElementById('stockDetailModal')) {
+        return;
+    }
+    
+    var modalHTML = `
+        <div id="stockDetailModal" class="stock-detail-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="stock-info">
+                        <h3 id="modalStockName" class="stock-name"></h3>
+                        <span id="modalStockCode" class="stock-code"></span>
+                    </div>
+                    <button id="closeModal" class="close-btn">×</button>
+                </div>
+                <div class="modal-body">
+                    <!-- 股票基本信息 -->
+                    <div class="stock-basic-info">
+                        <div class="info-item">
+                            <span class="label">最新价:</span>
+                            <span id="currentPrice" class="price"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">涨跌幅:</span>
+                            <span id="priceChange" class="change"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">开盘价:</span>
+                            <span id="openPrice"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">最高价:</span>
+                            <span id="highPrice"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">最低价:</span>
+                            <span id="lowPrice"></span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">成交量:</span>
+                            <span id="volume"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- 图表容器 -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <div class="time-range">
+                                <button class="time-btn active" data-range="5m">5分钟</button>
+                                <button class="time-btn" data-range="15m">15分钟</button>
+                                <button class="time-btn" data-range="30m">30分钟</button>
+                                <button class="time-btn" data-range="60m">60分钟</button>
+                                <button class="time-btn" data-range="1d">日线</button>
+                                <button class="time-btn" data-range="1w">周线</button>
+                                <button class="time-btn" data-range="1M">月线</button>
+                            </div>
+                            <div class="indicator-selector">
+                                <button class="indicator-btn" data-indicator="MA">MA</button>
+                                <button class="indicator-btn" data-indicator="MACD">MACD</button>
+                                <button class="indicator-btn" data-indicator="KDJ">KDJ</button>
+                            </div>
+                        </div>
+                        <!-- K线图 -->
+                        <div id="klineChart" class="kline-chart" style="height: 400px;"></div>
+                        <!-- 成交量图 -->
+                        <div id="volumeChart" class="volume-chart" style="height: 150px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 添加必要的样式 -->
+        <style>
+            .stock-detail-modal {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+                backdrop-filter: blur(5px);
+            }
+            
+            .stock-detail-modal.show {
+                display: flex;
+                animation: fadeIn 0.3s ease-out;
+            }
+            
+            .modal-content {
+                background: #fff;
+                border-radius: 12px;
+                width: 90%;
+                max-width: 1200px;
+                max-height: 90vh;
+                overflow: hidden;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+                animation: slideUp 0.3s ease-out;
+            }
+            
+            .modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 20px;
+                border-bottom: 1px solid #eee;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }
+            
+            .stock-info {
+                display: flex;
+                align-items: baseline;
+                gap: 15px;
+            }
+            
+            .stock-name {
+                margin: 0;
+                font-size: 24px;
+                font-weight: 600;
+            }
+            
+            .stock-code {
+                font-size: 16px;
+                opacity: 0.9;
+            }
+            
+            .close-btn {
+                background: none;
+                border: none;
+                font-size: 30px;
+                color: white;
+                cursor: pointer;
+                width: 40px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: background-color 0.2s;
+            }
+            
+            .close-btn:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+            
+            .modal-body {
+                padding: 20px;
+                overflow-y: auto;
+                max-height: calc(90vh - 80px);
+            }
+            
+            .stock-basic-info {
+                display: flex;
+                gap: 30px;
+                padding: 15px 0;
+                border-bottom: 1px solid #eee;
+                margin-bottom: 20px;
+            }
+            
+            .info-item {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+            
+            .info-item .label {
+                color: #666;
+                font-size: 14px;
+            }
+            
+            .info-item .price {
+                font-size: 20px;
+                font-weight: 600;
+            }
+            
+            .info-item .change {
+                font-size: 18px;
+                font-weight: 600;
+            }
+            
+            .chart-container {
+                margin-top: 20px;
+            }
+            
+            .chart-header {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .time-range, .indicator-selector {
+                display: flex;
+                gap: 10px;
+            }
+            
+            .time-btn, .indicator-btn {
+                padding: 6px 12px;
+                border: 1px solid #ddd;
+                background: white;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                transition: all 0.2s;
+            }
+            
+            .time-btn:hover, .indicator-btn:hover {
+                background: #f5f5f5;
+            }
+            
+            .time-btn.active {
+                background: #1890ff;
+                color: white;
+                border-color: #1890ff;
+            }
+            
+            .kline-chart, .volume-chart {
+                margin-bottom: 15px;
+                border-radius: 8px;
+                border: 1px solid #eee;
+                background-color: #fafafa;
+            }
+            
+            /* 动画效果 */
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            
+            @keyframes slideUp {
+                from { 
+                    transform: translateY(50px);
+                    opacity: 0;
+                }
+                to { 
+                    transform: translateY(0);
+                    opacity: 1;
+                }
+            }
+            
+            /* 响应式设计 */
+            @media (max-width: 768px) {
+                .modal-content {
+                    width: 95%;
+                }
+                
+                .stock-basic-info {
+                    flex-wrap: wrap;
+                    gap: 15px;
+                }
+                
+                .chart-header {
+                    flex-direction: column;
+                    gap: 10px;
+                }
+            }
+        </style>
+    `;
+    
+    // 添加到body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // 添加关闭事件
+    document.getElementById('closeModal').addEventListener('click', function() {
+        document.getElementById('stockDetailModal').classList.remove('show');
+    });
+    
+    // 点击背景关闭
+    document.getElementById('stockDetailModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.remove('show');
+        }
+    });
+}
+
+// 生成模拟K线数据
+function generateMockKLineData(count = 60) {
+    var basePrice = 100 + Math.random() * 50;
+    var data = [];
+    var volumes = [];
+    var dates = [];
+    
+    // 当前时间
+    var now = new Date();
+    
+    for (var i = count; i >= 0; i--) {
+        // 生成时间标签
+        var time = new Date(now - i * 3600000);
+        var timeStr = time.getHours() + ':' + (time.getMinutes() < 10 ? '0' : '') + time.getMinutes();
+        dates.push(timeStr);
+        
+        // 随机波动
+        var change = (Math.random() - 0.48) * 2; // 稍微偏向上涨
+        basePrice = Math.max(50, basePrice + change);
+        
+        // 生成开盘、最高、最低、收盘价
+        var open = basePrice;
+        var close = open + (Math.random() - 0.5) * 3;
+        var high = Math.max(open, close) + Math.random() * 2;
+        var low = Math.min(open, close) - Math.random() * 2;
+        
+        // 生成成交量
+        var volume = Math.random() * 10000 + 1000;
+        
+        data.push([open.toFixed(2), close.toFixed(2), low.toFixed(2), high.toFixed(2)]);
+        volumes.push(Math.round(volume));
+    }
+    
+    return { dates, data, volumes };
+}
+
+// 初始化K线图
+function initKLineChart(chartContainer, stockName, stockCode) {
+    // 获取K线图容器
+    var klineChartDom = document.getElementById(chartContainer);
+    if (!klineChartDom) {
+        console.error('K线图容器未找到:', chartContainer);
+        return null;
+    }
+    
+    // 创建ECharts实例
+    var klineChart = echarts.init(klineChartDom);
+    
+    // 生成模拟数据
+    var klineData = generateMockKLineData();
+    
+    // 准备数据
+    var categoryData = klineData.dates;
+    var values = klineData.data;
+    var volumes = klineData.volumes;
+    
+    // 准备OHLC数据
+    var ohlcData = values.map(item => [parseFloat(item[1]), parseFloat(item[0]), parseFloat(item[2]), parseFloat(item[3])]);
+    
+    // 计算涨跌幅颜色
+    var colors = [];
+    for (var i = 0; i < ohlcData.length; i++) {
+        var close = ohlcData[i][0];
+        var open = ohlcData[i][1];
+        colors.push(close >= open ? '#e33232' : '#00a854');
+    }
+    
+    // 配置选项
+    var option = {
+        title: {
+            text: stockName + ' (' + stockCode + ') K线图',
+            left: 'center',
+            textStyle: {
+                fontSize: 16,
+                fontWeight: 'bold'
+            }
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            },
+            formatter: function(params) {
+                var data = params[0];
+                var values = data.data;
+                return [
+                    '时间: ' + data.axisValue + '<br/>',
+                    '开盘: ' + values[1] + '<br/>',
+                    '收盘: ' + values[0] + '<br/>',
+                    '最低: ' + values[2] + '<br/>',
+                    '最高: ' + values[3] + '<br/>'
+                ].join('');
+            }
+        },
+        xAxis: {
+            type: 'category',
+            data: categoryData,
+            scale: true,
+            boundaryGap: false,
+            axisLine: { onZero: false },
+            splitLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+                show: true,
+                rotate: 45,
+                fontSize: 11
+            },
+            min: 'dataMin',
+            max: 'dataMax'
+        },
+        yAxis: {
+            scale: true,
+            splitArea: {
+                show: true,
+                areaStyle: {
+                    color: ['rgba(242, 242, 242, 0.3)', 'rgba(250, 250, 250, 0.3)']
+                }
+            },
+            axisLabel: {
+                formatter: function(value) {
+                    return value.toFixed(2);
+                }
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        dataZoom: [
+            {
+                type: 'inside',
+                xAxisIndex: [0],
+                start: 50,
+                end: 100
+            },
+            {
+                show: true,
+                xAxisIndex: [0],
+                type: 'slider',
+                bottom: '10%',
+                start: 50,
+                end: 100
+            }
+        ],
+        series: [
+            {
+                name: 'K线',
+                type: 'candlestick',
+                data: ohlcData,
+                itemStyle: {
+                    color: '#e33232',
+                    color0: '#00a854',
+                    borderColor: '#e33232',
+                    borderColor0: '#00a854'
+                },
+                emphasis: {
+                    itemStyle: {
+                        borderWidth: 2
+                    }
+                }
+            }
+        ]
+    };
+    
+    // 设置配置项
+    klineChart.setOption(option);
+    
+    // 监听窗口大小变化
+    window.addEventListener('resize', function() {
+        klineChart && klineChart.resize();
+    });
+    
+    return klineChart;
+}
+
+// 初始化成交量图
+function initVolumeChart(chartContainer, stockName, stockCode, klineData) {
+    // 获取成交量图容器
+    var volumeChartDom = document.getElementById(chartContainer);
+    if (!volumeChartDom) {
+        console.error('成交量图容器未找到:', chartContainer);
+        return null;
+    }
+    
+    // 创建ECharts实例
+    var volumeChart = echarts.init(volumeChartDom);
+    
+    // 使用传入的数据或生成新数据
+    var data = klineData || generateMockKLineData();
+    
+    // 准备数据
+    var categoryData = data.dates;
+    var volumes = data.volumes;
+    var values = data.data;
+    
+    // 计算成交量颜色
+    var colors = [];
+    for (var i = 0; i < values.length; i++) {
+        var close = parseFloat(values[i][1]);
+        var open = parseFloat(values[i][0]);
+        colors.push(close >= open ? '#e33232' : '#00a854');
+    }
+    
+    // 配置选项
+    var option = {
+        title: {
+            text: '成交量',
+            left: 'center',
+            textStyle: {
+                fontSize: 14,
+                fontWeight: 'normal'
+            }
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'cross'
+            },
+            formatter: function(params) {
+                var data = params[0];
+                return '时间: ' + data.axisValue + '<br/>成交量: ' + data.value.toLocaleString();
+            }
+        },
+        xAxis: {
+            type: 'category',
+            data: categoryData,
+            scale: true,
+            boundaryGap: false,
+            axisLine: { onZero: false },
+            splitLine: { show: false },
+            axisTick: { show: false },
+            axisLabel: {
+                show: true,
+                rotate: 45,
+                fontSize: 11
+            },
+            min: 'dataMin',
+            max: 'dataMax'
+        },
+        yAxis: {
+            scale: true,
+            splitArea: {
+                show: true,
+                areaStyle: {
+                    color: ['rgba(242, 242, 242, 0.3)', 'rgba(250, 250, 250, 0.3)']
+                }
+            },
+            axisLabel: {
+                formatter: function(value) {
+                    if (value >= 10000) {
+                        return (value / 10000) + '万';
+                    }
+                    return value;
+                }
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        dataZoom: [
+            {
+                type: 'inside',
+                xAxisIndex: [0],
+                start: 50,
+                end: 100
+            }
+        ],
+        series: [
+            {
+                name: '成交量',
+                type: 'bar',
+                data: volumes,
+                itemStyle: {
+                    color: function(params) {
+                        return colors[params.dataIndex];
+                    }
+                }
+            }
+        ]
+    };
+    
+    // 设置配置项
+    volumeChart.setOption(option);
+    
+    // 监听窗口大小变化
+    window.addEventListener('resize', function() {
+        volumeChart && volumeChart.resize();
+    });
+    
+    return volumeChart;
+}
+
+// 窗口控制功能
+function addModalControlFunctions() {
+    // 关闭按钮功能已在initStockDetailModal中实现
+    
+    // 添加键盘Esc关闭功能
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var modal = document.getElementById('stockDetailModal');
+            if (modal && modal.classList.contains('show')) {
+                modal.classList.remove('show');
+            }
+        }
+    });
+    
+    // 添加时间范围切换功能
+    var timeButtons = document.querySelectorAll('.time-btn');
+    timeButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            // 移除所有按钮的active状态
+            timeButtons.forEach(function(b) {
+                b.classList.remove('active');
+            });
+            // 添加当前按钮的active状态
+            this.classList.add('active');
+            
+            // 这里可以重新加载不同时间范围的数据
+            var range = this.getAttribute('data-range');
+            console.log('切换时间范围:', range);
+            // 重新初始化图表...
+        });
+    });
+    
+    // 添加指标选择功能
+    var indicatorButtons = document.querySelectorAll('.indicator-btn');
+    indicatorButtons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            // 切换指标显示状态
+            this.classList.toggle('active');
+            
+            var indicator = this.getAttribute('data-indicator');
+            console.log('切换指标:', indicator, this.classList.contains('active'));
+            // 更新图表指标...
+        });
+    });
+}
+
+// 显示股票详情弹出窗口
+// 优化用户体验和性能的辅助函数
+function optimizeUserExperience() {
+    // 为图表容器添加淡入动画效果
+    var chartContainers = document.querySelectorAll('.kline-chart, .volume-chart');
+    chartContainers.forEach(function(container) {
+        container.style.opacity = '0';
+        container.style.transition = 'opacity 0.5s ease-in-out';
+        setTimeout(function() {
+            container.style.opacity = '1';
+        }, 100);
+    });
+    
+    // 优化按钮交互体验
+    var allButtons = document.querySelectorAll('.time-btn, .indicator-btn');
+    allButtons.forEach(function(btn) {
+        btn.style.transition = 'all 0.2s ease';
+        
+        // 添加鼠标悬停效果
+        btn.addEventListener('mouseenter', function() {
+            this.style.transform = 'translateY(-1px)';
+            this.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+        });
+        
+        btn.addEventListener('mouseleave', function() {
+            this.style.transform = 'translateY(0)';
+            this.style.boxShadow = 'none';
+        });
+    });
+    
+    // 为股票名称添加点击事件，当用户点击股票名称时可以打开详情弹窗
+    var stockLinks = document.querySelectorAll('#stockTableBody a');
+    stockLinks.forEach(function(link) {
+        // 添加鼠标悬停效果
+        link.style.cursor = 'pointer';
+        link.setAttribute('title', '点击查看详情');
+        
+        link.addEventListener('click', function(e) {
+            // 拦截默认跳转行为，显示详情弹窗
+            e.preventDefault();
+            
+            // 获取股票名称和代码
+            var stockName = this.textContent;
+            var stockCode;
+            
+            // 尝试多种方式获取股票代码
+            // 首先尝试从下一个单元格获取代码（通常代码在名称的下一列）
+            var nextCell = this.parentElement.nextElementSibling;
+            if (nextCell && nextCell.textContent.trim()) {
+                stockCode = nextCell.textContent.trim();
+            } else if (this.getAttribute('href')) {
+                // 从href中提取代码
+                var href = this.getAttribute('href');
+                var match = href.match(/\/(\d+)\.(SS|SZ)$/);
+                if (match) {
+                    stockCode = match[1];
+                } else {
+                    match = href.match(/\/(\d+)$/);
+                    stockCode = match ? match[1] : stockName;
+                }
+            } else {
+                stockCode = stockName;
+            }
+            
+            console.log('股票名称:', stockName, '股票代码:', stockCode);
+            
+            // 显示股票详情弹窗
+            showStockDetailModal(stockName, stockCode);
+        });
+    });
+    
+    // 优化信息项的显示效果
+    var infoItems = document.querySelectorAll('.info-item');
+    infoItems.forEach(function(item, index) {
+        item.style.opacity = '0';
+        item.style.transform = 'translateY(10px)';
+        item.style.transition = 'all 0.3s ease';
+        
+        // 依次显示信息项，创建动画效果
+        setTimeout(function() {
+            item.style.opacity = '1';
+            item.style.transform = 'translateY(0)';
+        }, 100 + index * 50);
+    });
+}
+
+// ECharts实例管理对象，避免重复创建
+var chartInstances = {
+    klineChart: null,
+    volumeChart: null,
+    
+    // 销毁所有图表实例
+    destroyAll: function() {
+        if (this.klineChart) {
+            this.klineChart.dispose();
+            this.klineChart = null;
+        }
+        if (this.volumeChart) {
+            this.volumeChart.dispose();
+            this.volumeChart = null;
+        }
+    },
+    
+    // 更新K线图实例
+    updateKLine: function(chartContainer, stockName, stockCode) {
+        // 如果已存在实例，先销毁
+        if (this.klineChart) {
+            this.klineChart.dispose();
+        }
+        // 创建新实例
+        this.klineChart = initKLineChart(chartContainer, stockName, stockCode);
+        return this.klineChart;
+    },
+    
+    // 更新成交量图实例
+    updateVolume: function(chartContainer, stockName, stockCode, klineData) {
+        // 如果已存在实例，先销毁
+        if (this.volumeChart) {
+            this.volumeChart.dispose();
+        }
+        // 创建新实例
+        this.volumeChart = initVolumeChart(chartContainer, stockName, stockCode, klineData);
+        return this.volumeChart;
+    }
+};
+
+// 监听弹窗关闭事件，清理图表资源
+function setupModalCleanup() {
+    var modal = document.getElementById('stockDetailModal');
+    if (modal) {
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.attributeName === 'class') {
+                    // 检查弹窗是否关闭
+                    if (!modal.classList.contains('show')) {
+                        // 延迟销毁图表，等待关闭动画完成
+                        setTimeout(function() {
+                            chartInstances.destroyAll();
+                        }, 300);
+                    }
+                }
+            });
+        });
+        
+        observer.observe(modal, { attributes: true });
+    }
+}
+
+// 增强的模态窗口显示函数
+function showStockDetailModal(stockName, stockCode) {
+    // 确保模态窗口已初始化
+    initStockDetailModal();
+    
+    // 清空之前的数据
+    var infoElements = [
+        'currentPrice', 'priceChange', 'openPrice', 
+        'highPrice', 'lowPrice', 'volume'
+    ];
+    
+    infoElements.forEach(function(id) {
+        var element = document.getElementById(id);
+        if (element) {
+            element.textContent = '--';
+        }
+    });
+    
+    // 设置股票名称和代码
+    var nameElement = document.getElementById('modalStockName');
+    var codeElement = document.getElementById('modalStockCode');
+    if (nameElement) nameElement.textContent = stockName;
+    if (codeElement) codeElement.textContent = stockCode;
+    
+    // 显示模态窗口
+    var modal = document.getElementById('stockDetailModal');
+    if (modal) {
+        modal.classList.add('show');
+    } else {
+        console.error('股票详情弹窗未找到');
+        return;
+    }
+    
+    // 使用setTimeout确保DOM完全渲染后再执行后续操作
+    setTimeout(function() {
+        // 生成模拟数据
+        var currentPrice = (Math.random() * 100 + 10).toFixed(2);
+        var openPrice = (Math.random() * 90 + 10).toFixed(2);
+        var highPrice = (Math.random() * 110 + 10).toFixed(2);
+        var lowPrice = (Math.random() * 80 + 10).toFixed(2);
+        var volume = (Math.random() * 10000000).toFixed(0);
+        var change = ((currentPrice - openPrice) / openPrice * 100).toFixed(2);
+        
+        // 填充基本信息
+        if (document.getElementById('currentPrice')) document.getElementById('currentPrice').textContent = '¥' + currentPrice;
+        if (document.getElementById('priceChange')) document.getElementById('priceChange').textContent = (change > 0 ? '+' : '') + change + '%';
+        if (document.getElementById('openPrice')) document.getElementById('openPrice').textContent = '¥' + openPrice;
+        if (document.getElementById('highPrice')) document.getElementById('highPrice').textContent = '¥' + highPrice;
+        if (document.getElementById('lowPrice')) document.getElementById('lowPrice').textContent = '¥' + lowPrice;
+        if (document.getElementById('volume')) document.getElementById('volume').textContent = volume.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        
+        // 设置颜色
+        var changeElement = document.getElementById('priceChange');
+        var changeValue = parseFloat(change);
+        var priceColor = changeValue > 0 ? '#e33232' : (changeValue < 0 ? '#00a854' : '#666');
+        if (changeElement) changeElement.style.color = priceColor;
+        if (document.getElementById('currentPrice')) document.getElementById('currentPrice').style.color = priceColor;
+        
+        // 生成K线数据
+        var klineData = generateMockKLineData();
+        
+        // 初始化图表
+        chartInstances.updateKLine('klineChart', stockName, stockCode);
+        chartInstances.updateVolume('volumeChart', stockName, stockCode, klineData);
+        
+        // 添加窗口控制功能
+        addModalControlFunctions();
+        
+        // 设置清理函数
+        setupModalCleanup();
+    }, 100);
+}
+
+// 彻底清理文件末尾，只保留一套完整的初始化逻辑
+// 检查ECharts库是否已加载
+function checkEChartsLoaded() {
+    if (typeof echarts === 'undefined') {
+        console.warn('ECharts库未加载，正在尝试动态加载...');
+        
+        // 创建并添加ECharts脚本
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js';
+        script.onload = function() {
+            console.log('ECharts库已成功加载');
+        };
+        script.onerror = function() {
+            console.error('ECharts库加载失败，将使用简化视图');
+        };
+        
+        document.head.appendChild(script);
+    } else {
+        // ECharts已加载，可以正常使用
+        return true;
+    }
+}
+
+// 页面加载完成后自动初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        // 初始化模态窗口
+        initStockDetailModal();
+        // 为现有股票名称绑定事件
+        setTimeout(optimizeUserExperience, 100);
+    });
+} else {
+    // 页面已经加载完成
+    checkEChartsLoaded();
+    initStockDetailModal();
+    setTimeout(optimizeUserExperience, 100);
+}

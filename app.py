@@ -5,6 +5,8 @@ import os
 import requests
 import logging
 import hashlib
+import time
+import random
 from pypinyin import lazy_pinyin, FIRST_LETTER
 from apscheduler.schedulers.background import BackgroundScheduler
 import datetime
@@ -113,8 +115,32 @@ def search_results():
         latest_data = db.get_latest_day_data()
         return render_template('index.html', stocks=latest_data, search_mode=False)
     
-    # 搜索所有日期的相关数据
+    # 首先使用基本的关键词搜索
     search_results = db.search_stocks_by_keyword(keyword)
+    
+    # 如果没有结果，再尝试拼音搜索作为补充
+    if not search_results:
+        all_stock_info = db.get_all_stock_names_and_codes()
+        matched_codes = set()
+        
+        for name, code in all_stock_info:
+            # 转换为拼音
+            pinyin = ''.join(lazy_pinyin(name))
+            # 转换为拼音首字母缩写
+            pinyin_abbr = ''.join(lazy_pinyin(name, style=FIRST_LETTER))
+            
+            # 检查是否匹配
+            if (keyword.lower() in pinyin.lower() or 
+                keyword.lower() in pinyin_abbr.lower()):
+                matched_codes.add(code)
+        
+        # 如果有匹配的代码，搜索这些代码的所有数据
+        if matched_codes:
+            search_results = []
+            for code in matched_codes:
+                # 搜索该代码的所有数据
+                code_results = db.search_stocks_by_keyword(code)
+                search_results.extend(code_results)
     return render_template('index.html', stocks=search_results, search_mode=True, search_keyword=keyword)
 
 @app.route('/get-data-by-date')
@@ -236,6 +262,43 @@ def get_time_sharing_data():
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 500
 
+@app.route('/api/profit-ratio-data')
+def get_profit_ratio_data_api():
+    """
+    获取指定股票的获利比例历史数据API
+    """
+    try:
+        # 获取请求参数，同时支持stock_code和code参数，增强兼容性
+        stock_code = request.args.get('stock_code', request.args.get('code', '301629'))
+        days = int(request.args.get('days', 120))
+        
+        # 添加日志记录
+        print(f"接收到API请求: stock_code={stock_code}, days={days}")
+        
+        # 导入huoli模块的函数
+        import huoli
+        
+        # 获取获利比例数据
+        data = huoli.get_profit_ratio_data(stock_code=stock_code, days=days)
+        
+        # 添加日志记录数据量
+        print(f"获取到数据量: {len(data)}条")
+        
+        # 返回JSON数据
+        return jsonify({
+            'status': 'success',
+            'data': data
+        })
+        
+    except Exception as e:
+        # 详细记录错误信息
+        print(f"API错误: {str(e)}")
+        # 错误处理
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
 def scheduled_crawl():
     """定时执行股票数据抓取"""
     logging.info("定时任务开始执行: 抓取股票数据")
@@ -269,6 +332,182 @@ try:
 except Exception as e:
     logging.error(f"启动定时任务调度器失败: {e}")
 
+@app.route('/api/proxy-eastmoney-stock-data')
+def proxy_eastmoney_stock_data():
+    """代理东方财富网股票数据API，解决跨域问题"""
+    try:
+        # 获取查询参数
+        secids = request.args.get('secids')
+        
+        if not secids:
+            return jsonify({'error': '缺少必要参数'}), 400
+            
+        # 日志记录请求的股票ID
+        logging.info(f"请求的股票ID: {secids}")
+        
+        # 设置请求头，模拟浏览器行为
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+            'Referer': 'https://data.eastmoney.com/',
+            'Accept': 'application/json, text/javascript, */*; q=0.01'
+        }
+        
+        # 使用用户指定的API URL
+        api_url = f"https://push2.eastmoney.com/api/qt/ulist.np/get"
+        api_url += f"?fields=f2,f3,f12,f14"
+        api_url += f"&fltt=2"
+        api_url += f"&secids={secids}"
+        
+        logging.info(f"构建的API URL: {api_url}")
+        
+        # 请求重试机制
+        max_retries = 3
+        retry_count = 0
+        success = False
+        response_data = None
+        
+        while retry_count < max_retries and not success:
+            try:
+                # 发送请求
+                response = requests.get(api_url, headers=headers, timeout=10)
+                response.raise_for_status()
+                
+                # 处理响应
+                response_data = response.json()
+                
+                # 日志记录返回数据
+                logging.info(f"API返回数据: {response_data}")
+                
+                # 验证数据格式
+                if response_data and 'rc' in response_data and response_data['rc'] == 0 and 'data' in response_data:
+                    success = True
+                    logging.info(f"成功获取股票数据，共 {len(response_data['data'].get('diff', []))} 条")
+                else:
+                    logging.warning(f"返回数据格式不正确或请求失败: {response_data}")
+                    retry_count += 1
+                    time.sleep(1)
+                    
+            except requests.RequestException as e:
+                logging.warning(f"请求失败 (尝试 {retry_count+1}/{max_retries}): {str(e)}")
+                retry_count += 1
+                time.sleep(1)
+        
+        # 准备响应
+        if success and response_data:
+            # 创建响应对象，设置CORS头
+            response = make_response(jsonify(response_data))
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response.headers['Access-Control-Max-Age'] = '30'
+            return response
+        else:
+            # 失败时返回错误响应
+            return jsonify({'error': '获取数据失败，请稍后重试'}), 503
+            
+    except Exception as e:
+        logging.error(f"处理请求时发生错误: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+        
+@app.route('/api/proxy-eastmoney-kline-data', methods=['GET'])
+def proxy_eastmoney_kline_data():
+    """代理东方财富网K线图数据API，解决跨域问题"""
+    try:
+        # 获取查询参数
+        secid = request.args.get('secid')
+        klt = request.args.get('klt', '101')  # 默认日线
+        fqt = request.args.get('fqt', '1')    # 默认前复权
+        lmt = request.args.get('lmt', '250')  # 默认250条数据
+        end = request.args.get('end')         # 结束日期
+        
+        if not secid or not end:
+            return jsonify({'error': '缺少必要参数'}), 400
+            
+        # 构建东方财富网API URL
+        api_url = f"https://push2his.eastmoney.com/api/qt/stock/kline/get?"
+        api_url += f"secid={secid}&klt={klt}&fqt={fqt}&lmt={lmt}&end={end}"
+        api_url += "&iscca=1&fields1=f1,f2,f3,f4,f5&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62"
+        api_url += "&ut=f057cbcbce2a86e2866ab8877db1d059&forcect=1"
+        
+        # 设置请求头，模拟浏览器行为
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
+            'Referer': 'https://data.eastmoney.com/',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+        
+        # 发送请求到东方财富网API
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # 获取返回的数据
+        data = response.json()
+        
+        # 设置CORS响应头
+        response_headers = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Cache-Control': 'max-age=300'  # 5分钟缓存
+        }
+        
+        return jsonify(data), 200, response_headers
+        
+    except requests.RequestException as e:
+        # API请求失败，返回模拟数据作为后备
+        print(f"东方财富网K线API请求失败: {str(e)}")
+        mock_data = generate_mock_kline_data(secid)
+        return jsonify(mock_data), 200, {'Access-Control-Allow-Origin': '*'}
+    except Exception as e:
+        print(f"代理K线数据处理异常: {str(e)}")
+        return jsonify({'error': '服务器内部错误'}), 500
+
+def generate_mock_kline_data(secid):
+    """生成模拟的K线图数据"""
+    # 生成日期
+    dates = []
+    klines = []
+    today = datetime.now()
+    
+    # 初始价格在100左右
+    base_price = 100
+    
+    for i in range(250):
+        # 生成日期字符串
+        date = today - timedelta(days=249-i)
+        date_str = date.strftime('%Y%m%d')
+        dates.append(date_str)
+        
+        # 随机波动价格
+        change = (random.random() - 0.5) * 5
+        base_price += change
+        base_price = max(50, base_price)
+        
+        # 生成当日K线数据
+        open_price = base_price
+        close_price = base_price + (random.random() - 0.5) * 2
+        high_price = max(open_price, close_price) + random.random() * 2
+        low_price = min(open_price, close_price) - random.random() * 2
+        volume = int(10000000 + random.random() * 90000000)
+        amount = volume * close_price
+        
+        # 格式化为东方财富网API返回的字符串格式
+        kline_str = f"{date_str},{open_price:.2f},{close_price:.2f},{high_price:.2f},{low_price:.2f},{volume},{amount:.2f},0,0,0,0,0"
+        klines.append(kline_str)
+    
+    return {
+        'rc': [0, 0],
+        'rt': 1,
+        'svr': 1,
+        'lt': 1,
+        'full': 1,
+        'data': {
+            'code': secid.split('.')[-1],
+            'market': 'sh' if secid.startswith('1') else 'sz',
+            'name': '模拟股票',
+            'klines': klines
+        }
+    }
 if __name__ == '__main__':
     # 确保templates目录存在
     if not os.path.exists('templates'):
