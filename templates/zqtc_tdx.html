@@ -130,11 +130,12 @@
         .name-column { width: 60px; }
         .price-column { width: 60px; }
         .change-column { width: 60px; }
+        .time-column { width: 60px; }
         .amount-column { width: 80px; }
         .value-column { width: 80px; }
         .turnover-column { width: 60px; }
         .boards-column { width: 70px; }
-        .description-column { width: 260px; }
+        .description-column { width: 200px; }
         
         .sortable {
             cursor: pointer;
@@ -313,13 +314,14 @@
                                 <th class="boards-column sortable" onclick="sortByBoards()">几天几板<span id="boardsSortIndicator" class="sort-indicator"></span></th>
                                 <th class="price-column">现价</th>
                                 <th class="change-column sortable" onclick="sortByChange()">涨幅<span id="changeSortIndicator" class="sort-indicator"></span></th>
+                                <th class="time-column">涨停时间</th>
                                 <th class="amount-column sortable" onclick="sortByAmount()">成交额<span id="amountSortIndicator" class="sort-indicator"></span></th>
                                 <th class="value-column">流通市值</th>
                                 <th class="description-column">涨停原因</th>
                             </tr>
                         </thead>
                         <tbody id="detailBody">
-                            <tr><td colspan="7" class="loading">请选择题材查看详情</td></tr>
+                            <tr><td colspan="8" class="loading">请选择题材查看详情</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -634,6 +636,7 @@
                     const platesIndex = fields.indexOf('plates');
                     const turnoverIndex = fields.indexOf('turnover_ratio');
                     const boardsIndex = fields.indexOf('m_days_n_boards');
+                    const timeIndex = fields.indexOf('enter_time');
                     
                     conceptData = {};
                     
@@ -654,7 +657,8 @@
                                     value: stock[valueIndex],
                                     description: stock[descriptionIndex],
                                     turnover: stock[turnoverIndex],
-                                    boards: stock[boardsIndex]
+                                    boards: stock[boardsIndex],
+                                    enterTime: stock[timeIndex]
                                 };
                                 
                                 conceptData[plateName].push(stockInfo);
@@ -720,7 +724,7 @@
         
         async function renderStocks(stocks) {
             const detailBody = document.getElementById('detailBody');
-            detailBody.innerHTML = '<tr><td colspan="7" class="loading">加载实时数据中...</td></tr>';
+            detailBody.innerHTML = '<tr><td colspan="8" class="loading">加载实时数据中...</td></tr>';
             
             const codes = stocks.map(stock => stock.code);
             console.log('Stocks to fetch:', codes);
@@ -769,17 +773,27 @@
                     changeCell.style.color = stock.change > 0 ? '#ff4d4d' : '#4CAF50';
                 }
                 
-                const amountCell = row.insertCell(4);
+                const timeCell = row.insertCell(4);
+                if (stock.enterTime) {
+                    const date = new Date(stock.enterTime * 1000);
+                    const hours = date.getHours().toString().padStart(2, '0');
+                    const minutes = date.getMinutes().toString().padStart(2, '0');
+                    timeCell.textContent = `${hours}:${minutes}`;
+                } else {
+                    timeCell.textContent = '-';
+                }
+                
+                const amountCell = row.insertCell(5);
                 if (realTimeData[cleanCode] && realTimeData[cleanCode].amount) {
                     amountCell.textContent = formatAmount(realTimeData[cleanCode].amount);
                 } else {
                     amountCell.textContent = '-';
                 }
                 
-                const valueCell = row.insertCell(5);
+                const valueCell = row.insertCell(6);
                 valueCell.textContent = formatValue(stock.value);
                 
-                const descriptionCell = row.insertCell(6);
+                const descriptionCell = row.insertCell(7);
                 descriptionCell.className = 'description-column';
                 descriptionCell.textContent = stock.description || '-';
                 
