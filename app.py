@@ -359,7 +359,7 @@ def proxy_eastmoney_stock_data():
         
         # 使用用户指定的API URL
         api_url = f"https://push2.eastmoney.com/api/qt/ulist.np/get"
-        api_url += f"?fields=f2,f3,f12,f14"
+        api_url += f"?fields=f2,f3,f6,f12,f14"  # 添加f6字段以获取成交额
         api_url += f"&fltt=2"
         api_url += f"&secids={secids}"
         
@@ -522,3 +522,4 @@ if __name__ == '__main__':
     
     # 启动应用
     app.run(debug=True)
+
