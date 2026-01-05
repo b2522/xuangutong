@@ -177,6 +177,11 @@ def stock_detail(stock_code):
     history_data = db.get_stock_history_data(stock_code)
     return render_template('stock_detail.html', stock_code=stock_code, history_data=history_data)
 
+@app.route('/zqtc_tdx')
+def zqtc_tdx():
+    # 显示最强题材解读页面
+    return render_template('zqtc_tdx.html')
+
 @app.route('/api/realtime-stock-data')
 def get_realtime_stock_data():
     # 获取请求参数中的股票代码列表
@@ -261,6 +266,57 @@ def get_time_sharing_data():
         return jsonify({'error': f'请求失败: {str(e)}'}), 500
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 500
+
+# 导入获利比例计算模块
+from profit_ratio import SimpleProfitRatioCalculator
+
+@app.route('/api/profit-ratio', methods=['GET'])
+def get_profit_ratio():
+    """API路由，获取股票获利比例数据"""
+    try:
+        # 获取请求参数
+        stock_code = request.args.get('stock_code')
+        # 检查请求中是否包含days参数
+        days_param = request.args.get('days')
+        # 检查请求中是否包含end_date参数
+        end_date_param = request.args.get('end_date')
+        logging.info(f"请求参数: stock_code={stock_code}, days_param={days_param}, end_date_param={end_date_param}")
+        
+        # 获取days参数，默认30天，可通过参数调整
+        days = int(days_param) if days_param else 30  # 确保是整数
+        logging.info(f"处理后参数: days={days}")
+        
+        if not stock_code:
+            return jsonify({
+                'error': '缺少股票代码参数',
+                'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }), 400
+        
+        logging.info(f"获取股票 {stock_code} 最近 {days} 天的获利比例")
+        
+        # 创建计算器实例
+        calculator = SimpleProfitRatioCalculator()
+        
+        # 计算历史获利比例，传递end_date参数
+        result_data = calculator.calculate_historical_profit_ratio(stock_code, days=days, end_date=end_date_param)
+        
+        # 构造响应
+        response = {
+            'stock_code': stock_code,
+            'days': days,
+            'data': result_data,
+            'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'data_source': 'eastmoney_api'
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        logging.error(f"获取股票获利比例时出错: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }), 500
 
 @app.route('/api/profit-ratio-data')
 def get_profit_ratio_data_api():
