@@ -729,6 +729,7 @@
             
             stocks.forEach(stock => {
                 const row = detailBody.insertRow();
+                row.dataset.code = stock.code;
                 
                 const cleanCode = stock.code.includes('.') ? stock.code.split('.')[0] : stock.code;
                 
@@ -780,6 +781,65 @@
                     e.stopPropagation();
                     linkToTongDaXin(stock.code);
                 });
+            });
+        }
+        
+        async function updateRealTimeData() {
+            const detailBody = document.getElementById('detailBody');
+            const rows = detailBody.querySelectorAll('tr');
+            
+            if (rows.length === 0) return;
+            
+            const codes = [];
+            rows.forEach(row => {
+                const stockCode = row.dataset.code;
+                if (stockCode) {
+                    codes.push(stockCode);
+                }
+            });
+            
+            console.log('Updating real-time data for codes:', codes);
+            const realTimeData = await fetchRealTimeData(codes);
+            console.log('Received real-time data:', realTimeData);
+            
+            rows.forEach((row, index) => {
+                const stockCode = row.dataset.code;
+                if (!stockCode) return;
+                
+                const cleanCode = stockCode.includes('.') ? stockCode.split('.')[0] : stockCode;
+                
+                console.log(`Updating row ${index}: stockCode=${stockCode}, cleanCode=${cleanCode}, rtData=`, realTimeData[cleanCode]);
+                
+                const priceCell = row.cells[2];
+                const changeCell = row.cells[3];
+                const amountCell = row.cells[4];
+                
+                if (realTimeData[cleanCode]) {
+                    const rtData = realTimeData[cleanCode];
+                    priceCell.textContent = rtData.price.toFixed(2);
+                    changeCell.textContent = formatChangeFromAPI(rtData.change);
+                    
+                    const isPositive = rtData.change > 0;
+                    priceCell.style.color = isPositive ? '#ff4d4d' : '#4CAF50';
+                    changeCell.style.color = isPositive ? '#ff4d4d' : '#4CAF50';
+                    
+                    console.log(`Updated with real-time data: price=${rtData.price}, change=${rtData.change}`);
+                } else {
+                    const currentPrice = parseFloat(priceCell.textContent);
+                    const currentChange = parseFloat(changeCell.textContent);
+                    priceCell.textContent = currentPrice.toFixed(2);
+                    changeCell.textContent = formatChange(currentChange);
+                    changeCell.style.color = currentChange > 0 ? '#ff4d4d' : '#4CAF50';
+                    
+                    console.log(`No real-time data, keeping existing values`);
+                }
+                
+                if (realTimeData[cleanCode] && realTimeData[cleanCode].amount) {
+                    amountCell.textContent = formatAmount(realTimeData[cleanCode].amount);
+                    console.log(`Updated amount: ${realTimeData[cleanCode].amount}`);
+                } else {
+                    amountCell.textContent = '-';
+                }
             });
         }
         
@@ -895,7 +955,7 @@
                 const now = new Date();
                 
                 if (isTradingTime(now) && currentStocks.length > 0) {
-                    await renderStocks(currentStocks);
+                    await updateRealTimeData();
                 }
             }, 60000);
         }
