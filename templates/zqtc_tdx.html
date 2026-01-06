@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -67,7 +68,7 @@
         }
         .content {
             display: flex;
-            gap: 5px;
+            gap: 2px;
         }
         .left-panel {
             width: 280px;
@@ -75,7 +76,7 @@
         .right-panel {
             flex: 1;
             min-height: 400px;
-            margin-left: 5px;
+            margin-left: 0;
         }
         table {
             border-collapse: collapse;
@@ -112,7 +113,7 @@
         .footer {
             text-align: center;
             margin: 10px 0 3px 0;
-            color: var(--footer-color);
+            color: white;
             font-size: 10px;
         }
         .left-table { 
@@ -279,6 +280,9 @@
             <div class="date-selector">
                 <input type="date" id="datePicker" placeholder="年/月/日" onchange="onDateChange()">
             </div>
+            <div style="font-size: 14px; color: #cccccc; margin-left: 10px;">
+               <span style="color: orange;">橙色字体【创业板】</span> <span style="color: rgba(60, 127, 250, 0.781);">蓝色字体【科创板】</span>                
+            </div>
             <div class="font-size-control">
                 <button class="font-size-btn" onclick="changeFontSize(-1)">--</button>
                 <button class="font-size-btn" onclick="changeFontSize(0)">A</button>
@@ -329,7 +333,7 @@
         </div>
         
         <div class="footer">
-            数据来源: 旋极宝 生成时间: <span id="generateTime"></span>
+            【公众号：别浪 好好学习】 生成时间: <span id="generateTime"></span>
         </div>
     </div>
     
@@ -752,9 +756,6 @@
                 
                 const priceCell = row.insertCell(2);
                 const changeCell = row.insertCell(3);
-                
-                console.log('Processing stock:', stock.code, 'Clean code:', cleanCode, 'Real-time data:', realTimeData[cleanCode]);
-                
                 if (realTimeData[cleanCode]) {
                     const rtData = realTimeData[cleanCode];
                     priceCell.textContent = rtData.price.toFixed(2);
@@ -829,7 +830,7 @@
                 
                 const priceCell = row.cells[2];
                 const changeCell = row.cells[3];
-                const amountCell = row.cells[4];
+                const amountCell = row.cells[5];
                 
                 if (realTimeData[cleanCode]) {
                     const rtData = realTimeData[cleanCode];
